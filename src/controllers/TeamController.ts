@@ -42,8 +42,14 @@ class TeamController {
         const pokemons = []
 
         for (const pokename of team) {
-            const { id, name, weight, height } = await pokeapi.getPokemonByName(pokename)
-            pokemons.push({ id, name, weight, height })
+            try {
+                const { id, name, weight, height } = await pokeapi.getPokemonByName(pokename)
+                
+                pokemons.push({ id, name, weight, height })
+            } catch (error) {
+                return response.status(404).json({ mensagem: `Nome de pokemon inválido refaça o time ${pokename}` })
+            }
+
         }
 
         const id = teams.length + 1
