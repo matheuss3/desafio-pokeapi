@@ -1,28 +1,28 @@
 import { Request, Response } from "express";
 import { pokeapi } from "../services/pokeapi";
+import { prisma } from "../db";
 
 interface ICreateTeam {
     user: string,
     team: Array<string>
 }
 
-interface Team {
-    id: number,
-    owner: string,
-    pokemons: Array<object>
-}
-
-const teams : Array<Team> = []
-
 class TeamController {
     async getTeams(request: Request, response: Response) {
+        const teams = await prisma.team.findMany({
+            include: { pokemons: true }
+        })
+
         return response.json(teams)
     }
 
     async getTeamById(request: Request, response: Response) {
-        const id = Number(request.params.id)
+        const id = request.params.id
 
-        const team = teams.find(team => team.id === id)
+        const team = await prisma.team.findFirst({
+            where: { id },
+            include: { pokemons: true }
+        })
         
         if (!team) return response.status(404).json({ mensagem: 'Time não encontrado' })
 
@@ -37,26 +37,36 @@ class TeamController {
         
         if (!team || team.length < 1) return response.status(400).json({ mensagem: 'Informe os pokemons que irão compor o time' })
 
-    
-
         const pokemons = []
 
         for (const pokename of team) {
             try {
                 const { id, name, weight, height } = await pokeapi.getPokemonByName(pokename)
                 
-                pokemons.push({ id, name, weight, height })
+                pokemons.push({ pokeapiId: id, name, weight, height })
             } catch (error) {
                 return response.status(404).json({ mensagem: `Nome de pokemon inválido refaça o time ${pokename}` })
             }
 
         }
 
-        const id = teams.length + 1
-
-        teams.push({ id, owner: user, pokemons})
-
-        return response.json(teams)
+        try {
+            await prisma.team.create({
+                data: {
+                    owner: user,
+                    pokemons: {
+                        create: pokemons
+                    }
+                },
+                include: { pokemons: true }
+            })
+        
+            const teams = await prisma.team.findMany({ include: { pokemons: true } })
+        
+            return response.json([ teams ])
+        } catch (error) {
+            return response.status(500).json({ mensagem: `Erro ao salvar time no banco de dados!`, error })
+        }
     }
 }
 
